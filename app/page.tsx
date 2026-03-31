@@ -1,64 +1,141 @@
-import Image from "next/image";
+"use client";
+
+import { useState } from "react";
+
+const EXAMPLES = [
+  "https://github.com/vercel/next.js",
+  "https://github.com/shadcn-ui/ui",
+  "https://github.com/facebook/react",
+  "https://github.com/supabase/supabase",
+] as const;
 
 export default function Home() {
+  const [repoUrl, setRepoUrl] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [prompt, setPrompt] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setPrompt("");
+    setCopied(false);
+    setLoading(true);
+    try {
+      const res = await fetch("/api/reverse-prompt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ repoUrl: repoUrl.trim() }),
+      });
+      const data = (await res.json()) as { prompt?: string; error?: string };
+      if (!res.ok) {
+        setError(data.error ?? `Request failed (${res.status})`);
+        return;
+      }
+      if (typeof data.prompt === "string") {
+        setPrompt(data.prompt);
+      } else {
+        setError("No prompt in response.");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Request failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function copyPrompt() {
+    if (!prompt) return;
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setError("Could not copy to clipboard.");
+    }
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <div className="min-h-full bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
+      <main className="mx-auto flex max-w-2xl flex-col gap-8 px-4 py-12 sm:px-6">
+        <header className="space-y-2">
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+            gitreverse
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p className="text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+            Paste a public GitHub repo link. We’ll turn it into one
+            plain-language “vibe coding” prompt you could have used to build it.
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+        </header>
+
+        <form
+          onSubmit={onSubmit}
+          className="flex flex-col gap-4 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+        >
+          <label className="flex flex-col gap-1.5 text-sm font-medium">
+            GitHub repository
+            <input
+              name="repoUrl"
+              autoComplete="off"
+              className="rounded-lg border border-zinc-300 bg-white px-3 py-2 font-normal text-zinc-900 outline-none ring-zinc-400 focus:ring-2 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100"
+              placeholder="https://github.com/owner/repo or owner/repo"
+              value={repoUrl}
+              onChange={(e) => setRepoUrl(e.target.value)}
+              required
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+          </label>
+
+          <div className="flex flex-wrap gap-2">
+            <span className="w-full text-xs font-medium text-zinc-500 dark:text-zinc-400">
+              Try an example:
+            </span>
+            {EXAMPLES.map((url) => (
+              <button
+                key={url}
+                type="button"
+                onClick={() => setRepoUrl(url)}
+                className="rounded-lg border border-zinc-300 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-800 hover:bg-zinc-100 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
+              >
+                {url.replace("https://github.com/", "")}
+              </button>
+            ))}
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
           >
-            Documentation
-          </a>
-        </div>
+            {loading ? "Working…" : "Reverse to prompt"}
+          </button>
+
+          {error ? (
+            <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+              {error}
+            </p>
+          ) : null}
+        </form>
+
+        {prompt ? (
+          <section className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+                Synthetic prompt
+              </h2>
+              <button
+                type="button"
+                onClick={copyPrompt}
+                className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-800 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+              >
+                {copied ? "Copied" : "Copy"}
+              </button>
+            </div>
+            <pre className="max-h-[min(70vh,32rem)] overflow-auto whitespace-pre-wrap rounded-xl border border-zinc-200 bg-white p-4 text-sm leading-relaxed text-zinc-800 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200">
+              {prompt}
+            </pre>
+          </section>
+        ) : null}
       </main>
     </div>
   );
